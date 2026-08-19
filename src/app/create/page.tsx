@@ -14,7 +14,7 @@ import {
   getStoredDisplayName,
   storeDisplayName,
 } from "@/lib/displayName";
-import { createRoom } from "@/server/game/actions";
+import { createRoom, setRoomSettings } from "@/server/game/actions";
 import type { ChallengeType, GameMode } from "@/types/game";
 import { DEFAULT_WIN_TARGET } from "@/types/game";
 
@@ -38,7 +38,6 @@ export default function CreatePage() {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<GameMode>("national_club");
   const [challengeType, setChallengeType] = useState<ChallengeType>("random");
-  const [winTarget, setWinTarget] = useState(DEFAULT_WIN_TARGET);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +55,18 @@ export default function CreatePage() {
         userId,
         displayName,
         gameMode: mode,
-        winTarget,
+        winTarget: DEFAULT_WIN_TARGET,
         challengeType,
+      });
+      // Explicitly lock the defaults (Easy + first to 3) so the lobby never
+      // shows a stale server default.
+      await setRoomSettings(supabase, {
+        userId,
+        roomId: res.room_id,
+        gameMode: mode,
+        winTarget: DEFAULT_WIN_TARGET,
+        challengeType,
+        difficulty: "easy",
       });
       router.push(`/room/${res.code}`);
     } catch (e) {
@@ -125,29 +134,6 @@ export default function CreatePage() {
             <span className="block text-xs text-white/40">{c.hint}</span>
           </button>
         ))}
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-widest text-white/40">
-          Winning condition
-        </p>
-        <div className="flex gap-2">
-          {[3, 5, 7].map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setWinTarget(t)}
-              className={clsx(
-                "flex-1 rounded-xl border px-3 py-2 font-semibold transition",
-                winTarget === t
-                  ? "border-accent bg-accent/15"
-                  : "border-white/10 bg-white/5 text-white/70",
-              )}
-            >
-              First to {t}
-            </button>
-          ))}
-        </div>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

@@ -11,6 +11,7 @@ import {
   finishRoundIfExpired as finishRoundRpc,
   heartbeat,
   playAgain as playAgainRpc,
+  readyNextRound as readyNextRoundRpc,
   searchPlayers as searchPlayersRpc,
   setRoomSettings as setRoomSettingsRpc,
   startMatch as startMatchRpc,
@@ -20,9 +21,11 @@ import {
 import type {
   ChallengeType,
   ConfirmSelectionResult,
+  Difficulty,
   GameMode,
   MatchRow,
   PlayerSuggestion,
+  ReadyNextResult,
   RoomPlayerRow,
   RoomRow,
   RoundRow,
@@ -49,11 +52,13 @@ export interface GameRoomApi extends GameRoomState {
     mode: GameMode,
     winTarget: number,
     challengeType?: ChallengeType,
+    difficulty?: Difficulty,
   ) => Promise<void>;
   startMatch: () => Promise<void>;
   startNextRound: () => Promise<void>;
   submitAnswer: (answer: string) => Promise<SubmitAnswerResult>;
   confirmSelection: (selectionId: string) => Promise<ConfirmSelectionResult>;
+  readyNextRound: () => Promise<ReadyNextResult>;
   finishRound: () => Promise<void>;
   searchPlayers: (query: string) => Promise<PlayerSuggestion[]>;
   playAgain: () => Promise<void>;
@@ -269,7 +274,12 @@ export function useGameRoom(code: string): GameRoomApi {
   // ---- Actions ------------------------------------------------------------
 
   const updateSettings = useCallback(
-    async (mode: GameMode, winTarget: number, challengeType?: ChallengeType) => {
+    async (
+      mode: GameMode,
+      winTarget: number,
+      challengeType?: ChallengeType,
+      difficulty?: Difficulty,
+    ) => {
       if (!userId || !room) return;
       await setRoomSettingsRpc(getDb(), {
         userId,
@@ -277,6 +287,7 @@ export function useGameRoom(code: string): GameRoomApi {
         gameMode: mode,
         winTarget,
         challengeType,
+        difficulty,
       });
     },
     [getDb, userId, room],
@@ -317,6 +328,11 @@ export function useGameRoom(code: string): GameRoomApi {
     },
     [getDb, userId, round],
   );
+
+  const readyNextRound = useCallback(async (): Promise<ReadyNextResult> => {
+    if (!userId || !round) throw new Error("Not ready");
+    return readyNextRoundRpc(getDb(), { userId, roundId: round.id });
+  }, [getDb, userId, round]);
 
   const finishRound = useCallback(async () => {
     if (!round) return;
@@ -361,6 +377,7 @@ export function useGameRoom(code: string): GameRoomApi {
     startNextRound,
     submitAnswer,
     confirmSelection,
+    readyNextRound,
     finishRound,
     searchPlayers,
     playAgain,

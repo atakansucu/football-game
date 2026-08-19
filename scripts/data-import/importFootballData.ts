@@ -117,6 +117,24 @@ async function mapOrInsertByName(
   return map;
 }
 
+/**
+ * Remove gameplay rows that reference `players` via a non-cascading FK, so the
+ * player table can be cleared. `submissions.player_id` blocks player deletes,
+ * and `rounds.winner_submission_id` in turn references submissions (a cycle), so
+ * we null that link first. This only drops test-game answer history; rooms,
+ * matches and rounds are preserved.
+ */
+async function clearSubmissions(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+): Promise<number> {
+  const { error: upErr } = await supabase
+    .from("rounds")
+    .update({ winner_submission_id: null })
+    .not("winner_submission_id", "is", null);
+  if (upErr) throw new Error(`null winner_submission_id: ${upErr.message}`);
+  return clearTable(supabase, "submissions");
+}
+
 async function main() {
   const file = process.argv[2];
   if (!file) {
@@ -126,6 +144,11 @@ async function main() {
 
   const dataset = JSON.parse(readFileSync(file, "utf8")) as NormalizedDataset;
   const supabase = createServiceRoleClient();
+
+  // ---- Drop gameplay submissions that reference players (test history) -----
+  console.log("Clearing gameplay submissions...");
+  const delS = await clearSubmissions(supabase);
+  console.log(`Cleared ${delS} submissions`);
 
   // ---- Reset players only (batched; cascades to their FK rows + answers) ---
   // Clubs and national teams are referenced by existing `rounds`, so we cannot

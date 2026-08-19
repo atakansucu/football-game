@@ -11,10 +11,12 @@ export type RoundState =
   | "active"
   | "finished";
 export type ChallengeType = "random" | "player_pick";
+/** Random-mode difficulty (affects how many common players a combo has). */
+export type Difficulty = "easy" | "medium" | "hard";
 /** Role a player is assigned during a Player Pick selection phase. */
 export type SelectionRole = "national_team" | "club";
 
-export const DEFAULT_WIN_TARGET = 5;
+export const DEFAULT_WIN_TARGET = 3;
 /** Seconds each active round lasts, mirrored from the server deadline. */
 export const ROUND_SECONDS = 30;
 
@@ -25,6 +27,7 @@ export interface RoomRow {
   game_mode: GameMode;
   win_target: number;
   challenge_type: ChallengeType;
+  difficulty: Difficulty;
   host_user_id: string;
   created_at: string;
 }
@@ -77,6 +80,23 @@ export interface RoundRow {
   sel2_role: SelectionRole | null;
   invalid_reason: string | null;
   no_winner: boolean;
+  // Both-players-ready gate for advancing to the next round.
+  ready_1: boolean;
+  ready_2: boolean;
+}
+
+/** Result returned by the `ready_next_round` RPC. */
+export interface ReadyNextResult {
+  status:
+    | "waiting"
+    | "advanced"
+    | "match_over"
+    | "not_finished"
+    | "not_participant"
+    | "not_found";
+  round_id?: string;
+  ready_1?: boolean;
+  ready_2?: boolean;
 }
 
 /** Result returned by the `submit_answer` RPC. */

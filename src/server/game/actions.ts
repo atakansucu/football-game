@@ -2,8 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ChallengeType,
   ConfirmSelectionResult,
+  Difficulty,
   GameMode,
   PlayerSuggestion,
+  ReadyNextResult,
   SubmitAnswerResult,
 } from "@/types/game";
 
@@ -71,6 +73,7 @@ export async function setRoomSettings(
     gameMode: GameMode;
     winTarget: number;
     challengeType?: ChallengeType;
+    difficulty?: Difficulty;
   },
 ): Promise<{ status: "ok" | "forbidden" }> {
   const { data, error } = await supabase.rpc("set_room_settings", {
@@ -79,6 +82,7 @@ export async function setRoomSettings(
     p_game_mode: params.gameMode,
     p_win_target: params.winTarget,
     p_challenge_type: params.challengeType ?? null,
+    p_difficulty: params.difficulty ?? null,
   });
   if (error) throw new Error(error.message);
   return data as unknown as { status: "ok" | "forbidden" };
@@ -169,6 +173,22 @@ export async function confirmSelection(
   });
   if (error) throw new Error(error.message);
   return data as unknown as ConfirmSelectionResult;
+}
+
+/**
+ * Mark the caller ready to advance after a finished round. When BOTH players are
+ * ready the server creates the next round exactly once and returns its id.
+ */
+export async function readyNextRound(
+  supabase: Client,
+  params: { userId: string; roundId: string },
+): Promise<ReadyNextResult> {
+  const { data, error } = await supabase.rpc("ready_next_round", {
+    p_user_id: params.userId,
+    p_round_id: params.roundId,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as ReadyNextResult;
 }
 
 /** End a round whose 30s deadline passed with no winner (idempotent). */

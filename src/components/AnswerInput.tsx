@@ -58,15 +58,40 @@ function headline(result: SubmitAnswerResult): string {
   if (result.player_name) return result.player_name;
   switch (result.status) {
     case "ambiguous":
-      return "Too ambiguous — be more specific";
+      return "Be more specific";
     case "round_not_active":
       return "Round not active";
     case "expired":
-      return "Too late — time's up";
+      return "Time's up";
     case "rate_limited":
-      return "Slow down a moment";
+      return "Slow down";
+    case "error":
+      return "Couldn't submit";
     default:
-      return "Unknown player";
+      return "No match";
+  }
+}
+
+/** Short, friendly explanation shown under the guessed name. */
+function subtitle(result: SubmitAnswerResult): string {
+  if (result.is_correct) return "Correct answer";
+  switch (result.status) {
+    case "correct_but_late":
+      return "Right player — but time was up";
+    case "ambiguous":
+      return "Several players match — add more of the name";
+    case "expired":
+      return "The round already ended";
+    case "rate_limited":
+      return "Too many guesses — wait a moment";
+    case "round_not_active":
+      return "The round isn't active yet";
+    case "error":
+      return "Something went wrong, try again";
+    default:
+      return result.player_name
+        ? "Not in this challenge"
+        : "No player found with that name";
   }
 }
 
@@ -247,43 +272,99 @@ export function AnswerInput({
       </div>
 
       {attempts.length > 0 && (
-        <ul className="space-y-2">
-          {attempts.map((a) => {
-            const correct = a.result.is_correct;
-            const lines = buildCheckLines(round, a.result);
-            return (
-              <li key={a.key} className="card space-y-1 p-3 text-left">
-                <div
+        <div className="space-y-2">
+          <LatestFeedback round={round} attempt={attempts[0]} />
+          {attempts.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              {attempts.slice(1).map((a) => (
+                <span
+                  key={a.key}
                   className={clsx(
-                    "flex items-center justify-between text-base font-semibold",
-                    correct ? "text-accent" : "text-red-400",
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs",
+                    a.result.is_correct
+                      ? "border-accent/30 bg-accent/10 text-accent-soft"
+                      : "border-white/10 bg-white/5 text-white/50",
                   )}
                 >
-                  <span className="truncate">{headline(a.result)}</span>
-                  <span aria-hidden className="ml-2">
-                    {correct ? "✓" : "✕"}
+                  <span aria-hidden>{a.result.is_correct ? "✓" : "✕"}</span>
+                  <span className="max-w-[10rem] truncate">
+                    {a.result.player_name ?? a.raw}
                   </span>
-                </div>
-                <div className="text-xs text-white/40">you typed: {a.raw}</div>
-                {lines.map((line) => (
-                  <div
-                    key={line.label}
-                    className={clsx(
-                      "flex items-center justify-between text-sm",
-                      line.ok ? "text-accent-soft" : "text-red-400",
-                    )}
-                  >
-                    <span className="uppercase tracking-wide">
-                      {line.label}
-                    </span>
-                    <span aria-hidden>{line.ok ? "✓" : "✕"}</span>
-                  </div>
-                ))}
-              </li>
-            );
-          })}
-        </ul>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </form>
+  );
+}
+
+/** Prominent, animated result card for the most recent guess. */
+function LatestFeedback({
+  round,
+  attempt,
+}: {
+  round: RoundRow;
+  attempt: Attempt;
+}) {
+  const correct = attempt.result.is_correct;
+  const lines = buildCheckLines(round, attempt.result);
+  return (
+    <div
+      key={attempt.key}
+      className={clsx(
+        "animate-pop rounded-2xl border p-4 text-left",
+        correct
+          ? "border-accent/40 bg-accent/10"
+          : "animate-shake border-red-500/30 bg-red-500/10",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={clsx(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-black",
+            correct
+              ? "bg-accent text-pitch-950"
+              : "bg-red-500/20 text-red-300",
+          )}
+          aria-hidden
+        >
+          {correct ? "✓" : "✕"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p
+            className={clsx(
+              "truncate text-lg font-bold leading-tight",
+              correct ? "text-accent-soft" : "text-white",
+            )}
+          >
+            {headline(attempt.result)}
+          </p>
+          <p className="truncate text-sm text-white/50">
+            {subtitle(attempt.result)}
+          </p>
+        </div>
+      </div>
+
+      {lines.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {lines.map((line) => (
+            <span
+              key={line.label}
+              className={clsx(
+                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium",
+                line.ok
+                  ? "border-accent/30 bg-accent/10 text-accent-soft"
+                  : "border-white/10 bg-black/20 text-white/45",
+              )}
+            >
+              <span aria-hidden>{line.ok ? "✓" : "✕"}</span>
+              <span className="uppercase tracking-wide">{line.label}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
