@@ -1,0 +1,26 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.local
+.env*.local
+
+# Supabase
+/supabase/.branches
+/supabase/.temp
+/supabase/.env
+
+.DS_Store
+npm-debug.log*
+
+# Large imported dataset (generated)
+/dataset.transfermarkt.json
+
+# Raw dataset downloads (large CSVs / zip)
+/tmdata
+/tm.zip
+*.csv
