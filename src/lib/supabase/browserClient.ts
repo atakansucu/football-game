@@ -8,11 +8,22 @@ let client: SupabaseClient | null = null;
  * Returns a singleton browser Supabase client. Used for realtime subscriptions,
  * anonymous auth and RPC calls from client components.
  *
- * The auth session is stored in `sessionStorage` (per-tab) rather than cookies
- * or `localStorage` (shared across the whole browser profile). This means each
- * browser tab gets its own anonymous identity, so you can open two tabs on the
- * same computer and play as two different players.
+ * Storage differs by platform:
+ * - Web: `sessionStorage` (per-tab) so two browser tabs on one machine get
+ *   separate anonymous identities and can play each other while testing.
+ * - Native (Capacitor): `localStorage` so the anonymous identity survives app
+ *   restarts (a native app is a single "tab" anyway).
  */
+function pickAuthStorage(): Storage | undefined {
+  if (typeof window === "undefined") return undefined;
+  const isNative = Boolean(
+    (window as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean };
+    }).Capacitor?.isNativePlatform?.(),
+  );
+  return isNative ? window.localStorage : window.sessionStorage;
+}
+
 export function getSupabaseBrowserClient(): SupabaseClient {
   if (client) return client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -27,8 +38,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       persistSession: true,
       autoRefreshToken: true,
       storageKey: "fd-auth",
-      storage:
-        typeof window !== "undefined" ? window.sessionStorage : undefined,
+      storage: pickAuthStorage(),
     },
   });
   return client;

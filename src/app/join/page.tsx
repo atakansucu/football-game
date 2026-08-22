@@ -52,7 +52,7 @@ export default function JoinPage() {
         setBusy(false);
         return;
       }
-      router.push(`/room/${res.code}`);
+      router.push(`/room?code=${res.code}`);
     } catch (e) {
       setError(friendlyError(e));
       setBusy(false);

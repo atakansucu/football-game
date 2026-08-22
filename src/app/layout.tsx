@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { NativeInit } from "@/components/NativeInit";
 
 export const metadata: Metadata = {
   title: "Football Duel",
@@ -11,6 +12,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -21,7 +23,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <div className="mx-auto flex min-h-full w-full max-w-md flex-col px-4 py-6 sm:max-w-lg">
+        <NativeInit />
+        <div className="safe-area mx-auto flex min-h-full w-full max-w-md flex-col px-4 sm:max-w-lg">
           {children}
         </div>
       </body>

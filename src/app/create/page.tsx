@@ -68,7 +68,7 @@ export default function CreatePage() {
         challengeType,
         difficulty: "easy",
       });
-      router.push(`/room/${res.code}`);
+      router.push(`/room?code=${res.code}`);
     } catch (e) {
       setError(friendlyError(e));
       setBusy(false);

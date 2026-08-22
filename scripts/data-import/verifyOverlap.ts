@@ -52,7 +52,7 @@ async function comboCounts(
       .in(colB, bIds)
       .range(from, from + pageSize - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
-    const rows = (data ?? []) as Record<string, string>[];
+    const rows = (data ?? []) as unknown as Record<string, string>[];
     for (const r of rows) {
       const key = `${r[colA]}|${r[colB]}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
