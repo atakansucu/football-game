@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
 // Best-effort load of .env.local so the integration test can find the local
@@ -17,9 +17,13 @@ function loadEnv() {
 }
 loadEnv();
 
+const configuredUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
 const dbConfigured =
+  process.env.RUN_SUPABASE_INTEGRATION_TESTS === "1" &&
   !!process.env.SUPABASE_SERVICE_ROLE_KEY &&
-  !!(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+  /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/.test(configuredUrl);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -40,14 +44,32 @@ suite("submit_answer (atomic, race-safe)", () => {
   let createServiceRoleClient: typeof import("@/lib/supabase/serverClient").createServiceRoleClient;
   let actions: typeof import("@/server/game/actions");
   let supabase: ReturnType<typeof createServiceRoleClient>;
-
-  const user1 = randomUUID();
-  const user2 = randomUUID();
+  let player1: SupabaseClient;
+  let player2: SupabaseClient;
+  let user1: string;
+  let user2: string;
 
   beforeAll(async () => {
     ({ createServiceRoleClient } = await import("@/lib/supabase/serverClient"));
     actions = await import("@/server/game/actions");
     supabase = createServiceRoleClient();
+    const url =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    player1 = createClient(url!, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    player2 = createClient(url!, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const [auth1, auth2] = await Promise.all([
+      player1.auth.signInAnonymously(),
+      player2.auth.signInAnonymously(),
+    ]);
+    if (auth1.error || !auth1.data.user) throw auth1.error;
+    if (auth2.error || !auth2.data.user) throw auth2.error;
+    user1 = auth1.data.user.id;
+    user2 = auth2.data.user.id;
   });
 
   async function validNamesForRound(roundId: string): Promise<string[]> {
@@ -76,7 +98,7 @@ suite("submit_answer (atomic, race-safe)", () => {
   }
 
   it("assigns exactly one winner for simultaneous correct answers and rejects late/early submissions", async () => {
-    const created = await actions.createRoom(supabase, {
+    const created = await actions.createRoom(player1, {
       userId: user1,
       displayName: "Atakan",
       gameMode: "national_club",
@@ -84,14 +106,14 @@ suite("submit_answer (atomic, race-safe)", () => {
     });
     expect(created.status).toBe("ok");
 
-    const joined = await actions.joinRoom(supabase, {
+    const joined = await actions.joinRoom(player2, {
       userId: user2,
       displayName: "Player 2",
       code: created.code,
     });
     expect(joined.status).toBe("ok");
 
-    const started = await actions.startMatch(supabase, {
+    const started = await actions.startMatch(player1, {
       userId: user1,
       roomId: created.room_id,
     });
@@ -104,7 +126,7 @@ suite("submit_answer (atomic, race-safe)", () => {
     const nameB = names[1] ?? names[0];
 
     // 10a. Submitting during the countdown is rejected.
-    const early = await actions.submitRoundAnswer(supabase, {
+    const early = await actions.submitRoundAnswer(player1, {
       userId: user1,
       roundId,
       answer: nameA,
@@ -116,12 +138,12 @@ suite("submit_answer (atomic, race-safe)", () => {
 
     // 8/9. Two correct answers arrive almost simultaneously.
     const [r1, r2] = await Promise.all([
-      actions.submitRoundAnswer(supabase, {
+      actions.submitRoundAnswer(player1, {
         userId: user1,
         roundId,
         answer: nameA,
       }),
-      actions.submitRoundAnswer(supabase, {
+      actions.submitRoundAnswer(player2, {
         userId: user2,
         roundId,
         answer: nameB,
@@ -140,7 +162,7 @@ suite("submit_answer (atomic, race-safe)", () => {
     expect(round?.winner_user_id).not.toBeNull();
 
     // 10b. Submitting after the round has ended is rejected.
-    const late = await actions.submitRoundAnswer(supabase, {
+    const late = await actions.submitRoundAnswer(player2, {
       userId: user2,
       roundId,
       answer: nameB,

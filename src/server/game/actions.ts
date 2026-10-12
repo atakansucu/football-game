@@ -4,8 +4,11 @@ import type {
   ConfirmSelectionResult,
   Difficulty,
   GameMode,
+  League,
   PlayerSuggestion,
   ReadyNextResult,
+  SoloChallenge,
+  SoloCheckResult,
   SubmitAnswerResult,
 } from "@/types/game";
 
@@ -32,6 +35,7 @@ export async function createRoom(
     gameMode: GameMode;
     winTarget: number;
     challengeType?: ChallengeType;
+    league?: League | null;
   },
 ): Promise<CreateRoomResult> {
   const { data, error } = await supabase.rpc("create_room", {
@@ -40,13 +44,14 @@ export async function createRoom(
     p_game_mode: params.gameMode,
     p_win_target: params.winTarget,
     p_challenge_type: params.challengeType ?? "random",
+    p_league: params.league ?? null,
   });
   if (error) throw new Error(error.message);
   return data as unknown as CreateRoomResult;
 }
 
 export interface JoinRoomResult {
-  status: "ok" | "not_found" | "full";
+  status: "ok" | "not_found" | "full" | "not_joinable";
   room_id?: string;
   code?: string;
   slot?: number;
@@ -74,6 +79,7 @@ export async function setRoomSettings(
     winTarget: number;
     challengeType?: ChallengeType;
     difficulty?: Difficulty;
+    league?: League | null;
   },
 ): Promise<{ status: "ok" | "forbidden" }> {
   const { data, error } = await supabase.rpc("set_room_settings", {
@@ -83,6 +89,7 @@ export async function setRoomSettings(
     p_win_target: params.winTarget,
     p_challenge_type: params.challengeType ?? null,
     p_difficulty: params.difficulty ?? null,
+    p_league: params.league ?? null,
   });
   if (error) throw new Error(error.message);
   return data as unknown as { status: "ok" | "forbidden" };
@@ -218,6 +225,48 @@ export async function searchPlayers(
   return (data as unknown as PlayerSuggestion[]) ?? [];
 }
 
+/**
+ * Single Player: fetch a random playable challenge for the given mode +
+ * difficulty. No room/match/round is involved.
+ */
+export async function getSoloChallenge(
+  supabase: Client,
+  params: { mode: GameMode; difficulty: Difficulty; league?: League | null },
+): Promise<SoloChallenge> {
+  const { data, error } = await supabase.rpc("sp_random_challenge", {
+    p_mode: params.mode,
+    p_difficulty: params.difficulty,
+    p_league: params.league ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as SoloChallenge;
+}
+
+/**
+ * Single Player: validate one guess against a challenge. The server never
+ * returns the full list of valid answers — only whether this guess was correct.
+ */
+export async function checkSoloAnswer(
+  supabase: Client,
+  params: {
+    mode: GameMode;
+    nationalTeamId: string | null;
+    club1Id: string | null;
+    club2Id: string | null;
+    answer: string;
+  },
+): Promise<SoloCheckResult> {
+  const { data, error } = await supabase.rpc("sp_check_answer", {
+    p_mode: params.mode,
+    p_national_team_id: params.nationalTeamId,
+    p_club_1_id: params.club1Id,
+    p_club_2_id: params.club2Id,
+    p_raw_answer: params.answer,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as SoloCheckResult;
+}
+
 export async function heartbeat(
   supabase: Client,
   params: { userId: string; roomId: string },
@@ -228,4 +277,51 @@ export async function heartbeat(
   });
   if (error) throw new Error(error.message);
   return data as unknown as { status: "ok" };
+}
+
+export async function markStalePresence(
+  supabase: Client,
+  roomId: string,
+): Promise<{ status: string; marked_stale?: number }> {
+  const { data, error } = await supabase.rpc("mark_stale_presence", {
+    p_room_id: roomId,
+    p_stale_after_seconds: 45,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { status: string; marked_stale?: number };
+}
+
+export async function leaveRoom(
+  supabase: Client,
+  params: { userId: string; roomId: string },
+): Promise<{ status: string }> {
+  const { data, error } = await supabase.rpc("leave_room", {
+    p_user_id: params.userId,
+    p_room_id: params.roomId,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { status: string };
+}
+
+export async function claimAbandonedMatch(
+  supabase: Client,
+  params: { userId: string; roomId: string },
+): Promise<{ status: string }> {
+  const { data, error } = await supabase.rpc("claim_abandoned_match", {
+    p_user_id: params.userId,
+    p_room_id: params.roomId,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { status: string };
+}
+
+/** Delete the current anonymous guest account and its associated game data. */
+export async function requestAccountDeletion(
+  supabase: Client,
+): Promise<{ status: "deleted" | "requires_server_deletion" | "not_found" }> {
+  const { data, error } = await supabase.rpc("request_account_deletion");
+  if (error) throw new Error(error.message);
+  return data as unknown as {
+    status: "deleted" | "requires_server_deletion" | "not_found";
+  };
 }

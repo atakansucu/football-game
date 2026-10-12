@@ -168,3 +168,8 @@ join public.players p on p.name = v.player_name
 on conflict do nothing;
 
 select public.rebuild_answers();
+
+-- The solo combo materialized views are created during migrations, before this
+-- seed file runs, so they are empty after a fresh `supabase db reset` unless
+-- refreshed after rebuilding the answer tables.
+select public.refresh_solo_combos();

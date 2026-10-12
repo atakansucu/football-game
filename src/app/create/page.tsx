@@ -15,8 +15,8 @@ import {
   storeDisplayName,
 } from "@/lib/displayName";
 import { createRoom, setRoomSettings } from "@/server/game/actions";
-import type { ChallengeType, GameMode } from "@/types/game";
-import { DEFAULT_WIN_TARGET } from "@/types/game";
+import type { ChallengeType, GameMode, League } from "@/types/game";
+import { DEFAULT_WIN_TARGET, LEAGUES } from "@/types/game";
 
 const MODES: { value: GameMode; label: string }[] = [
   { value: "national_club", label: "National Team × Club" },
@@ -38,6 +38,8 @@ export default function CreatePage() {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<GameMode>("national_club");
   const [challengeType, setChallengeType] = useState<ChallengeType>("random");
+  // null = "All leagues". Only meaningful for Random (Player Pick chooses teams).
+  const [league, setLeague] = useState<League | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,12 +53,15 @@ export default function CreatePage() {
       storeDisplayName(displayName);
       const supabase = getSupabaseBrowserClient();
       const userId = await ensureAnonymousUser();
+      // League only applies to Random; Player Pick lets players choose teams.
+      const chosenLeague = challengeType === "random" ? league : null;
       const res = await createRoom(supabase, {
         userId,
         displayName,
         gameMode: mode,
         winTarget: DEFAULT_WIN_TARGET,
         challengeType,
+        league: chosenLeague,
       });
       // Explicitly lock the defaults (Easy + first to 3) so the lobby never
       // shows a stale server default.
@@ -67,6 +72,7 @@ export default function CreatePage() {
         winTarget: DEFAULT_WIN_TARGET,
         challengeType,
         difficulty: "easy",
+        league: chosenLeague,
       });
       router.push(`/room?code=${res.code}`);
     } catch (e) {
@@ -103,13 +109,14 @@ export default function CreatePage() {
             type="button"
             onClick={() => setMode(m.value)}
             className={clsx(
-              "w-full rounded-xl border px-4 py-3 text-left font-semibold transition",
+              "flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left font-semibold transition active:scale-[0.99]",
               mode === m.value
-                ? "border-accent bg-accent/15"
+                ? "border-accent bg-accent/15 text-white"
                 : "border-white/10 bg-white/5 text-white/70",
             )}
           >
-            {m.label}
+            <span>{m.label}</span>
+            {mode === m.value && <span className="text-accent">✓</span>}
           </button>
         ))}
       </div>
@@ -124,17 +131,50 @@ export default function CreatePage() {
             type="button"
             onClick={() => setChallengeType(c.value)}
             className={clsx(
-              "w-full rounded-xl border px-4 py-3 text-left transition",
+              "flex w-full items-start justify-between gap-3 rounded-xl border px-4 py-3.5 text-left transition active:scale-[0.99]",
               challengeType === c.value
                 ? "border-accent bg-accent/15"
                 : "border-white/10 bg-white/5 text-white/70",
             )}
           >
-            <span className="block font-semibold">{c.label}</span>
-            <span className="block text-xs text-white/40">{c.hint}</span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-white">{c.label}</span>
+              <span className="block text-xs text-white/40">{c.hint}</span>
+            </span>
+            {challengeType === c.value && (
+              <span className="mt-0.5 shrink-0 text-accent">✓</span>
+            )}
           </button>
         ))}
       </div>
+
+      {challengeType === "random" && (
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-widest text-white/40">
+            League
+          </p>
+          <select
+            value={league ?? ""}
+            onChange={(e) =>
+              setLeague(e.target.value === "" ? null : e.target.value)
+            }
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 font-semibold text-white transition focus:border-accent focus:outline-none"
+          >
+            {LEAGUES.map((l) => (
+              <option
+                key={l.label}
+                value={l.value ?? ""}
+                className="bg-neutral-900"
+              >
+                {l.label}
+              </option>
+            ))}
+          </select>
+          <p className="px-1 text-xs text-white/40">
+            Restrict random challenges to one league.
+          </p>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 

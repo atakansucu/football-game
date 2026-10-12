@@ -52,6 +52,11 @@ export default function JoinPage() {
         setBusy(false);
         return;
       }
+      if (res.status === "not_joinable") {
+        setError("This game has already started");
+        setBusy(false);
+        return;
+      }
       router.push(`/room?code=${res.code}`);
     } catch (e) {
       setError(friendlyError(e));

@@ -4,8 +4,9 @@
 
 Football Duel ("the app", "we", "us") is a football (soccer) trivia game. This
 policy explains what data the app handles and why. We keep it minimal on
-purpose: the app does not require an account, does not ask for your name, email,
-or any personal contact details, and does not show ads.
+purpose: the app does not require registration, does not ask for your legal
+name, email, or other contact details, and does not show ads. It automatically
+creates a technical guest account when multiplayer features need one.
 
 ## Information we handle
 
@@ -44,20 +45,24 @@ room, gameplay events) is processed on Supabase's infrastructure on our behalf.
 
 ## Data retention
 
-Multiplayer room and match data is transient and used only to run games. On-device
-data (high scores, cached team lists) remains until you delete the app or clear
-its data.
+Multiplayer room, match, answer, and guest-profile records are retained in our
+backend until you delete your guest account or we remove old operational data.
+We do not currently promise a fixed automatic deletion period. On-device data
+(high scores, cached team lists) remains until you delete the app, clear its
+data, or use the in-app deletion control.
 
 ## Children's privacy
 
-The app is suitable for a general audience and does not knowingly collect
-personal information from children. Because it requires no account and no
-personal details, no personal data is requested from any user.
+The app is suitable for a general audience and does not knowingly request
+personal contact information from children. It requires no registration or
+personal contact details.
 
 ## Your choices
 
-Because the app stores no personal profile, there is nothing to log into or out
-of. You can remove all locally stored data at any time by deleting the app.
+The app creates an automatically generated guest account for multiplayer. You
+can delete that guest account and its associated game-profile data from
+**Settings & Privacy → Delete Account**. You can remove locally stored data by
+using that control or deleting the app.
 
 ## Changes to this policy
 

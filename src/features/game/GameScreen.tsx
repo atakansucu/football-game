@@ -24,7 +24,7 @@ import { ROUND_SECONDS, type RoundRow } from "@/types/game";
 import type { GameRoomApi } from "@/features/room/useGameRoom";
 
 export function GameScreen({ api }: { api: GameRoomApi }) {
-  const { room, round, players, scores, userId, isHost, mySlot, searchPlayers } =
+  const { room, round, players, scores, userId, mySlot, searchPlayers } =
     api;
   const now = useNow();
   const phase = getRoundPhase(round, now);
@@ -41,7 +41,6 @@ export function GameScreen({ api }: { api: GameRoomApi }) {
   useEffect(() => {
     if (
       phase === "active" &&
-      isHost &&
       round &&
       secondsLeft === 0 &&
       !round.winner_user_id &&
@@ -51,7 +50,7 @@ export function GameScreen({ api }: { api: GameRoomApi }) {
       api.finishRound().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, isHost, round?.id, secondsLeft]);
+  }, [phase, round?.id, secondsLeft]);
 
   // Once a round is finished, fetch the players that WERE valid for it. This
   // reuses the public lookup RPCs and only runs after the round is over, so it
@@ -246,10 +245,10 @@ function TimerBar({ round, now }: { round: RoundRow; now: number }) {
     >
       <div
         className={clsx(
-          "h-full rounded-full transition-[width] duration-200 ease-linear",
+          "h-full w-full origin-left rounded-full transition-transform duration-200 ease-linear",
           color,
         )}
-        style={{ width: `${frac * 100}%` }}
+        style={{ transform: `scaleX(${frac})` }}
       />
     </div>
   );

@@ -2,14 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { App } from "@capacitor/app";
+import { Network } from "@capacitor/network";
 import {
   ensureAnonymousUser,
   getSupabaseBrowserClient,
 } from "@/lib/supabase/browserClient";
 import {
+  claimAbandonedMatch,
   confirmSelection as confirmSelectionRpc,
   finishRoundIfExpired as finishRoundRpc,
   heartbeat,
+  leaveRoom as leaveRoomRpc,
+  markStalePresence,
   playAgain as playAgainRpc,
   readyNextRound as readyNextRoundRpc,
   searchPlayers as searchPlayersRpc,
@@ -43,6 +48,7 @@ export interface GameRoomState {
   /** wins per user id in the current match */
   scores: Record<string, number>;
   isHost: boolean;
+  online: boolean;
 }
 
 export interface GameRoomApi extends GameRoomState {
@@ -62,6 +68,7 @@ export interface GameRoomApi extends GameRoomState {
   finishRound: () => Promise<void>;
   searchPlayers: (query: string) => Promise<PlayerSuggestion[]>;
   playAgain: () => Promise<void>;
+  leaveRoom: () => Promise<void>;
 }
 
 export function useGameRoom(code: string): GameRoomApi {
@@ -77,6 +84,10 @@ export function useGameRoom(code: string): GameRoomApi {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [online, setOnline] = useState(
+    () => typeof navigator === "undefined" || navigator.onLine,
+  );
+  const abandonClaimRef = useRef<string | null>(null);
 
   // ---- Fetchers -----------------------------------------------------------
 
@@ -145,6 +156,31 @@ export function useGameRoom(code: string): GameRoomApi {
     [getDb],
   );
 
+  const refreshSnapshot = useCallback(async () => {
+    const r = await fetchRoom();
+    if (!r) {
+      setError("Room not found");
+      return;
+    }
+    setRoom(r);
+    await fetchPlayers(r.id);
+    const m = await fetchLatestMatch(r.id);
+    setMatch(m);
+    if (m) {
+      await Promise.all([fetchLatestRound(m.id), fetchScores(m.id)]);
+    } else {
+      setRound(null);
+      setScores({});
+    }
+    setError(null);
+  }, [
+    fetchLatestMatch,
+    fetchLatestRound,
+    fetchPlayers,
+    fetchRoom,
+    fetchScores,
+  ]);
+
   // ---- Initial load + room-level realtime ---------------------------------
 
   useEffect(() => {
@@ -173,6 +209,7 @@ export function useGameRoom(code: string): GameRoomApi {
         setLoading(false);
 
         heartbeat(supabase, { userId: uid, roomId: r.id }).catch(() => {});
+        markStalePresence(supabase, r.id).catch(() => {});
 
         channel = supabase
           .channel(`room:${r.id}`)
@@ -209,7 +246,11 @@ export function useGameRoom(code: string): GameRoomApi {
               setMatch(nm);
             },
           )
-          .subscribe();
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              void refreshSnapshot();
+            }
+          });
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load room");
@@ -223,7 +264,61 @@ export function useGameRoom(code: string): GameRoomApi {
       if (channel) getDb().removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
+  }, [code, refreshSnapshot]);
+
+  // Realtime can miss changes while iOS is suspended or the network is down.
+  // Always reconcile from authoritative database rows after foregrounding or
+  // reconnecting instead of trusting the next Realtime event to arrive.
+  useEffect(() => {
+    let disposed = false;
+    const cleanups: Array<() => void> = [];
+
+    const resync = () => {
+      if (!disposed) void refreshSnapshot();
+    };
+
+    if (typeof document !== "undefined") {
+      const onVisibility = () => {
+        if (document.visibilityState === "visible") resync();
+      };
+      const onOnline = () => {
+        setOnline(true);
+        resync();
+      };
+      const onOffline = () => setOnline(false);
+      document.addEventListener("visibilitychange", onVisibility);
+      window.addEventListener("online", onOnline);
+      window.addEventListener("offline", onOffline);
+      cleanups.push(() =>
+        document.removeEventListener("visibilitychange", onVisibility),
+      );
+      cleanups.push(() => window.removeEventListener("online", onOnline));
+      cleanups.push(() => window.removeEventListener("offline", onOffline));
+    }
+
+    void App.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) resync();
+    }).then((handle) => {
+      if (disposed) void handle.remove();
+      else cleanups.push(() => void handle.remove());
+    });
+
+    void Network.addListener("networkStatusChange", ({ connected }) => {
+      setOnline(connected);
+      if (connected) resync();
+    }).then((handle) => {
+      if (disposed) void handle.remove();
+      else cleanups.push(() => void handle.remove());
+    });
+    void Network.getStatus().then(({ connected }) => {
+      if (!disposed) setOnline(connected);
+    });
+
+    return () => {
+      disposed = true;
+      for (const cleanup of cleanups) cleanup();
+    };
+  }, [refreshSnapshot]);
 
   // ---- Match-level realtime (rounds) --------------------------------------
 
@@ -253,7 +348,14 @@ export function useGameRoom(code: string): GameRoomApi {
           await fetchScores(matchId);
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void Promise.all([
+            fetchLatestRound(matchId),
+            fetchScores(matchId),
+          ]);
+        }
+      });
 
     return () => {
       getDb().removeChannel(channel);
@@ -267,9 +369,26 @@ export function useGameRoom(code: string): GameRoomApi {
     if (!userId || !room) return;
     const id = setInterval(() => {
       heartbeat(getDb(), { userId, roomId: room.id }).catch(() => {});
+      markStalePresence(getDb(), room.id).catch(() => {});
     }, 15000);
     return () => clearInterval(id);
   }, [getDb, userId, room]);
+
+  useEffect(() => {
+    if (!userId || !room || room.status !== "playing") return;
+    const opponent = players.find((player) => player.user_id !== userId);
+    if (!opponent || opponent.connected) {
+      abandonClaimRef.current = null;
+      return;
+    }
+    if (abandonClaimRef.current === room.id) return;
+    abandonClaimRef.current = room.id;
+    claimAbandonedMatch(getDb(), { userId, roomId: room.id })
+      .then(() => refreshSnapshot())
+      .catch(() => {
+        abandonClaimRef.current = null;
+      });
+  }, [getDb, players, refreshSnapshot, room, userId]);
 
   // ---- Actions ------------------------------------------------------------
 
@@ -351,6 +470,11 @@ export function useGameRoom(code: string): GameRoomApi {
     await playAgainRpc(getDb(), { userId, roomId: room.id });
   }, [getDb, userId, room]);
 
+  const leaveRoom = useCallback(async () => {
+    if (!userId || !room) return;
+    await leaveRoomRpc(getDb(), { userId, roomId: room.id });
+  }, [getDb, userId, room]);
+
   const isHost = useMemo(
     () => !!room && !!userId && room.host_user_id === userId,
     [room, userId],
@@ -371,6 +495,7 @@ export function useGameRoom(code: string): GameRoomApi {
     round,
     scores,
     isHost,
+    online,
     mySlot,
     updateSettings,
     startMatch,
@@ -381,5 +506,6 @@ export function useGameRoom(code: string): GameRoomApi {
     finishRound,
     searchPlayers,
     playAgain,
+    leaveRoom,
   };
 }

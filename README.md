@@ -1,4 +1,4 @@
-# Football Duel
+# 3-2-1 Football
 
 Real-time 2-player football knowledge game. Both players get the same challenge
 at the same time and race to type a valid football player's name — the first
@@ -16,14 +16,44 @@ can never both win, and the opponent never sees what you type.
   National Team × Club or Club × Club combination.
 - Real dataset (~16.8k players / 545 clubs / 104 national teams) from Transfermarkt.
 
+## Licensing-safe team visuals
+
+- National teams use operating-system emoji flags where a country mapping is
+  available, with a generic globe fallback.
+- Club visuals are generated locally from the club name: a short label, a
+  generic shield and deterministic colors from a curated palette.
+- Generated club badges are non-official placeholders. They do not reproduce or
+  imitate club crests and the app does not fetch club logo URLs or remote badge
+  artwork.
+- Do not add scraped logos, unverified image datasets or third-party artwork
+  without documented rights and a separate legal/release review.
+
+See [`docs/VISUAL_ASSET_POLICY.md`](docs/VISUAL_ASSET_POLICY.md) for the design
+rules and metadata-source notes.
+
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind CSS
+- Next.js App Router + TypeScript + Tailwind CSS, exported as static files
+- Capacitor 8 native iOS shell
+- Swift Package Manager (Capacitor and native plugin dependencies)
 - Supabase Postgres (schema + atomic RPCs)
 - Supabase Realtime (live room/round sync)
 - Supabase anonymous auth
 
-## Quick start (run from GitHub)
+The active mobile architecture is **Next.js static export + Capacitor 8 + iOS
+SPM**. Expo/EAS is not the build or release path documented for this app.
+
+## Requirements
+
+- Node.js **22 or newer** (`@capacitor/cli` 8.5.0 requires Node `>=22.0.0`)
+- npm
+- macOS + Xcode for iOS development
+- An Apple Developer team for physical-device signing or distribution
+- A configured Supabase project
+
+The iOS deployment target is 15.0.
+
+## Quick start
 
 > **Pulling the repo alone is not enough.** `node_modules` and `.env.local`
 > (your Supabase keys) are intentionally not committed, and the football data
@@ -32,7 +62,8 @@ can never both win, and the opponent never sees what you type.
 ```bash
 git clone git@github.com:atakansucu/football-game.git
 cd football-game
-npm install
+node --version                  # must be >= 22
+npm ci
 cp .env.example .env.local     # then fill in the values below
 npm run dev                    # http://localhost:3000
 ```
@@ -41,10 +72,15 @@ Fill `.env.local` with your Supabase project values (from Supabase Dashboard →
 **Project Settings → API**):
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=<your Supabase project URL>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
 SUPABASE_SERVICE_ROLE_KEY=<service role key>   # only for scripts/tests, never shipped to the browser
 ```
+
+`NEXT_PUBLIC_*` values are embedded into the static web bundle at build time.
+Use the intended backend values **before** `npm run mobile:build`. Never place
+`SUPABASE_SERVICE_ROLE_KEY` in client code, Capacitor configuration, Xcode build
+settings, or a distributed app.
 
 As long as `.env.local` points at a Supabase project that already has the schema
 and data, **no migration or import is needed** — the app just works. The easiest
@@ -57,7 +93,7 @@ Setting up a **fresh, empty** Supabase project instead? See
 
 ```
 src/
-  app/                 pages: / /create /join /room/[code] /lookup
+  app/                 statically exported application routes
   components/          shared UI (Button, ScoreBar, ChallengeCard, AnswerInput)
   features/
     room/              useGameRoom (realtime) + Lobby
@@ -74,12 +110,120 @@ supabase/
   seed.sql             demo data (real players)
 scripts/data-import/   preprocess + import any dataset into the normalized shape
 tests/                 vitest domain tests + DB integration test
+out/                   generated Next.js static export (Capacitor webDir)
+capacitor.config.ts    app id/name, webDir and native plugin configuration
+ios/App/               Xcode project and native iOS application
+  CapApp-SPM/          Capacitor-managed local Swift package
 ```
 
 Game rules live entirely in `src/lib/football` (unit-tested) and mirrored in the
 database RPCs. The football data source can be swapped by feeding a
 `NormalizedDataset` (see `scripts/data-import/types.ts`) into the importer without
 touching game logic.
+
+## iOS architecture and development
+
+The native app does not host a Next.js server. `next.config.mjs` uses
+`output: "export"` and writes the site to `out/`. `capacitor.config.ts` points
+`webDir` at that folder. Capacitor copies the static files into the iOS project,
+then the WKWebView loads them locally while Supabase Auth, RPC and Realtime use
+the network.
+
+Current native identity:
+
+- App/display name: `3-2-1 Football`
+- Bundle ID: `com.atakansucu.footballduel`
+- Capacitor: 8.5.0
+- iOS deployment target: 15.0
+- Native dependency manager: Swift Package Manager
+
+`ios/App/CapApp-SPM/Package.swift` is generated/managed by Capacitor. Do not edit
+it manually.
+
+### Build, sync and open
+
+From the repository root:
+
+```bash
+# Build the Next.js static export and sync it plus native plugins into iOS
+npm run mobile:build
+
+# Sync again only when out/ already contains the intended current build
+npm run mobile:sync
+
+# Open the native project in Xcode
+npm run mobile:ios
+```
+
+`npm run mobile:build` is the normal path after any web app or environment
+change. Opening Xcode without rebuilding/syncing can run stale web assets.
+
+In Xcode, wait for the local `CapApp-SPM` package to resolve. Select the `App`
+scheme, choose a signed physical device, then Run. Do not add CocoaPods steps;
+this project uses SPM.
+
+### Physical-device multiplayer test
+
+Use two physical iOS devices with the same candidate build:
+
+1. Device A creates a multiplayer room and records the room code.
+2. Device B joins that code using a different display name.
+3. Verify both devices enter the same round and see matching challenge/timer.
+4. Submit nearly simultaneous correct answers; verify exactly one server winner.
+5. Test wrong answers, next round, final result and rematch/exit behavior.
+6. Background/foreground one device, reconnect it, and switch Wi-Fi/cellular
+   where available.
+7. Force a temporary network failure and verify recovery/error messaging.
+8. Relaunch both apps and verify anonymous-session behavior is expected.
+9. Confirm every club uses a generated shield and no remote crest is requested.
+
+Record device model, iOS version, network type, app version/build number and
+pass/fail result. Complete solo, lookup, keyboard, safe-area and accessibility
+checks as part of the same release candidate.
+
+### Archive and TestFlight
+
+Production distribution is performed in Xcode, not EAS:
+
+1. Run tests/typecheck, then `npm run mobile:build` with reviewed production
+   public environment values.
+2. Open Xcode with `npm run mobile:ios`.
+3. Confirm Apple Team, bundle ID, signing, marketing version and monotonically
+   increasing build number.
+4. Select an eligible generic iOS device destination and use
+   **Product → Archive**.
+5. In Organizer, validate the archive.
+6. Only after explicit approval, use **Distribute App** to upload that specific
+   archive to App Store Connect.
+7. Wait for processing, then—after separate explicit approval—assign the build
+   to the intended TestFlight internal group.
+8. Repeat the two-device matrix on the TestFlight build.
+
+No credential, certificate, profile, issuer ID, key ID, private key, privacy URL
+or support URL should be invented or committed. See
+[`docs/APP_STORE_RELEASE_GUIDE.md`](docs/APP_STORE_RELEASE_GUIDE.md) and
+[`docs/APP_STORE_METADATA_TEMPLATE.md`](docs/APP_STORE_METADATA_TEMPLATE.md).
+Test evidence should use
+[`docs/IOS_RELEASE_CHECKLIST.md`](docs/IOS_RELEASE_CHECKLIST.md).
+
+### Production approval gates
+
+- **Gate A — archive:** no production archive/distribution action until the
+  release commit, environment, version/build, signing target, licenses, privacy
+  inventory, support/privacy URLs and physical-device results are reviewed.
+- **Gate B — upload:** no App Store Connect upload until the user approves the
+  exact Xcode archive version/build and target app.
+- **Gate C — TestFlight:** no tester/group assignment until the user approves
+  the processed build.
+- **Gate D — review:** no App Review submission until metadata, content rights,
+  App Privacy answers and TestFlight results are approved.
+- **Gate E — release:** automatic release stays off; App Store release requires
+  a final explicit approval after Apple review.
+
+The Transfermarkt-derived Kaggle dataset is a release blocker: public download
+does not itself prove redistribution rights. **Do not release** without written
+permission covering distribution or a fully substituted, documented
+open-licensed source. Club visuals remain generated and artwork-free.
 
 ## Game modes
 

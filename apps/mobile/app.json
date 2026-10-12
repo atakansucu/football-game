@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "3-2-1 Football",
+    "slug": "football-duel",
+    "version": "1.0.0",
+    "scheme": "footballduel",
+    "orientation": "portrait",
+    "icon": "../../assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.atakansucu.footballduel",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "../../assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#04140b",
+          "dark": {
+            "image": "../../assets/splash-dark.png",
+            "backgroundColor": "#04140b"
+          }
+        }
+      ]
+    ]
+  }
+}

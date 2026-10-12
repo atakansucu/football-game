@@ -3,8 +3,8 @@ import "./globals.css";
 import { NativeInit } from "@/components/NativeInit";
 
 export const metadata: Metadata = {
-  title: "Football Duel",
-  description: "Real-time 2-player football knowledge duel",
+  title: "3-2-1 Football",
+  description: "Guess the footballer before the clock runs out",
 };
 
 export const viewport: Viewport = {
@@ -24,8 +24,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <NativeInit />
-        <div className="safe-area mx-auto flex min-h-full w-full max-w-md flex-col px-4 sm:max-w-lg">
-          {children}
+        <div className="app-shell">
+          <div className="safe-area mx-auto flex min-h-full w-full max-w-md flex-col sm:max-w-lg">
+            {children}
+          </div>
         </div>
       </body>
     </html>

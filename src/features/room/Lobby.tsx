@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { clsx } from "@/lib/clsx";
 import type { ChallengeType, Difficulty, GameMode } from "@/types/game";
+import { leagueLabel } from "@/types/game";
 import type { GameRoomApi } from "./useGameRoom";
 
 const MODE_LABEL: Record<GameMode, string> = {
@@ -87,29 +88,26 @@ export function Lobby({ api }: { api: GameRoomApi }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-2">
       {/* Room code hero */}
       <div className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+        <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">
           Room code
         </p>
-        <p className="mt-1 font-display text-5xl font-black tracking-[0.35em] text-accent">
+        <p className="font-display text-4xl font-black tracking-[0.3em] text-accent">
           {room.code}
-        </p>
-        <p className="mt-1 text-sm text-white/40">
-          Share this code with your opponent
         </p>
       </div>
 
       {/* Players */}
-      <div className="card space-y-1 p-2">
+      <div className="card space-y-1 p-1.5">
         {[1, 2].map((slot) => {
           const p = players.find((pl) => pl.slot === slot);
           const isRoomHost = p && p.user_id === room.host_user_id;
           return (
             <div
               key={slot}
-              className="flex items-center justify-between rounded-xl px-3 py-3"
+              className="flex items-center justify-between rounded-xl px-3 py-2.5"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -122,7 +120,7 @@ export function Lobby({ api }: { api: GameRoomApi }) {
                 />
                 <span
                   className={clsx(
-                    "text-lg font-semibold",
+                    "font-semibold",
                     p ? "text-white" : "text-white/40",
                   )}
                 >
@@ -145,19 +143,15 @@ export function Lobby({ api }: { api: GameRoomApi }) {
       </div>
 
       {/* Locked match summary (chosen when the room was created) */}
-      <div className="card p-4">
-        <p className="mb-3 text-xs uppercase tracking-widest text-white/30">
-          Match
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Chip>{MODE_LABEL[room.game_mode]}</Chip>
-          <Chip>{CHALLENGE_LABEL[room.challenge_type]}</Chip>
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <Chip>{MODE_LABEL[room.game_mode]}</Chip>
+        <Chip>{CHALLENGE_LABEL[room.challenge_type]}</Chip>
+        {isRandom && <Chip>{leagueLabel(room.league)}</Chip>}
       </div>
 
       {/* Winning score (host-adjustable in the lobby) */}
       <div>
-        <p className="mb-2 px-1 text-xs uppercase tracking-widest text-white/40">
+        <p className="mb-1.5 px-1 text-xs uppercase tracking-widest text-white/40">
           Winning score
         </p>
         <div
@@ -182,7 +176,7 @@ export function Lobby({ api }: { api: GameRoomApi }) {
       {/* Difficulty (Random only) */}
       {isRandom && (
         <div>
-          <div className="mb-2 flex items-baseline justify-between px-1">
+          <div className="mb-1.5 flex items-baseline justify-between px-1">
             <p className="text-xs uppercase tracking-widest text-white/40">
               Difficulty
             </p>
@@ -215,21 +209,23 @@ export function Lobby({ api }: { api: GameRoomApi }) {
         </div>
       )}
 
-      {isHost ? (
-        <Button onClick={onStart} disabled={!bothReady || busy}>
-          {busy
-            ? "Starting…"
-            : bothReady
-              ? "Start game"
+      <div className="pt-1">
+        {isHost ? (
+          <Button onClick={onStart} disabled={!bothReady || busy}>
+            {busy
+              ? "Starting…"
+              : bothReady
+                ? "Start game"
+                : "Waiting for opponent…"}
+          </Button>
+        ) : (
+          <p className="text-center text-sm text-white/50">
+            {bothReady
+              ? "Waiting for the host to start…"
               : "Waiting for opponent…"}
-        </Button>
-      ) : (
-        <p className="text-center text-sm text-white/50">
-          {bothReady
-            ? "Waiting for the host to start…"
-            : "Waiting for opponent…"}
-        </p>
-      )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

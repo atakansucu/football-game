@@ -12,7 +12,7 @@ export default function RoomPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex flex-1 flex-col py-2">
+        <main className="flex flex-1 flex-col">
           <div className="flex flex-1 items-center justify-center">
             <p className="text-white/50">Loading room...</p>
           </div>
@@ -29,14 +29,12 @@ function RoomGate() {
   const code = useSearchParams().get("code");
 
   function handleExit() {
-    if (window.confirm("Leave this game and return to the main menu?")) {
-      router.push("/");
-    }
+    router.push("/");
   }
 
   if (!code) {
     return (
-      <main className="flex flex-1 flex-col py-2">
+      <main className="flex flex-1 flex-col">
         <TopNav onExit={handleExit} />
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
           <p className="text-lg text-red-400">Room not found</p>
@@ -50,10 +48,13 @@ function RoomGate() {
 
 function RoomView({ code, onExit }: { code: string; onExit: () => void }) {
   const api = useGameRoom(code);
+  const leaveAndExit = () => {
+    void api.leaveRoom().catch(() => {}).finally(onExit);
+  };
 
   if (api.loading) {
     return (
-      <main className="flex flex-1 flex-col py-2">
+      <main className="flex flex-1 flex-col">
         <TopNav onExit={onExit} />
         <div className="flex flex-1 items-center justify-center">
           <p className="text-white/50">Loading room...</p>
@@ -64,7 +65,7 @@ function RoomView({ code, onExit }: { code: string; onExit: () => void }) {
 
   if (api.error || !api.room) {
     return (
-      <main className="flex flex-1 flex-col py-2">
+      <main className="flex flex-1 flex-col">
         <TopNav onExit={onExit} />
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
           <p className="text-lg text-red-400">
@@ -88,8 +89,16 @@ function RoomView({ code, onExit }: { code: string; onExit: () => void }) {
   }
 
   return (
-    <main className="flex flex-1 flex-col py-2">
-      <TopNav onExit={onExit} />
+    <main className="flex flex-1 flex-col">
+      <TopNav onExit={leaveAndExit} />
+      {!api.online && (
+        <p
+          role="status"
+          className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-center text-sm text-amber-200"
+        >
+          Connection lost. The game will resync when you are online.
+        </p>
+      )}
       {content}
     </main>
   );

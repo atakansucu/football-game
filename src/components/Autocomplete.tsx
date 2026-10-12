@@ -4,7 +4,13 @@ import { useMemo, useRef, useState } from "react";
 import { clsx } from "@/lib/clsx";
 import { normalizePlayerName } from "@/lib/football/normalize";
 import { DropdownPortal } from "@/components/DropdownPortal";
+import { onFieldFocus } from "@/lib/keyboard";
+import { TeamBadge } from "@/components/TeamBadge";
 import type { NamedEntity } from "@/features/lookup/api";
+
+// While typing we cap results so filtering stays snappy. With no query we show
+// EVERY team (scrollable). Generated badges keep the list network-independent.
+const MAX_RESULTS = 300;
 
 interface AutocompleteProps {
   label: string;
@@ -12,6 +18,8 @@ interface AutocompleteProps {
   items: NamedEntity[];
   value: string | null;
   onChange: (id: string | null) => void;
+  /** When set, each option shows a flag or generated club badge. */
+  iconKind?: "club" | "national";
 }
 
 export function Autocomplete({
@@ -20,6 +28,7 @@ export function Autocomplete({
   items,
   value,
   onChange,
+  iconKind,
 }: AutocompleteProps) {
   const selected = items.find((i) => i.id === value) ?? null;
   const [query, setQuery] = useState("");
@@ -32,12 +41,14 @@ export function Autocomplete({
   // selected item's name.
   const display = open ? query : (selected?.name ?? "");
 
-  // Show the full list (scrollable) when nothing is typed; otherwise filter.
+  // With no query, list ALL teams (scrollable). While typing, filter and cap so
+  // keystrokes stay snappy.
   const suggestions = useMemo(() => {
     const q = normalizePlayerName(query);
-    return q
-      ? items.filter((i) => normalizePlayerName(i.name).includes(q))
-      : items;
+    if (!q) return items;
+    return items
+      .filter((i) => normalizePlayerName(i.name).includes(q))
+      .slice(0, MAX_RESULTS);
   }, [items, query]);
 
   function choose(item: NamedEntity) {
@@ -82,6 +93,7 @@ export function Autocomplete({
             if (selected) onChange(null);
           }}
           onFocus={() => {
+            onFieldFocus(inputRef.current);
             setQuery("");
             setOpen(true);
             setHighlight(0);
@@ -96,7 +108,7 @@ export function Autocomplete({
 
         <DropdownPortal
           anchorRef={inputRef}
-          open={open && suggestions.length > 0}
+          open={open}
           className="max-h-64 overflow-auto rounded-xl border border-white/15 bg-pitch-900/95 p-1 shadow-xl backdrop-blur"
           onMouseDown={(e) => {
             // Prevent input blur from closing before click registers.
@@ -104,23 +116,36 @@ export function Autocomplete({
             if (blurTimer.current) clearTimeout(blurTimer.current);
           }}
         >
-          {suggestions.map((item, idx) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => choose(item)}
-                onMouseEnter={() => setHighlight(idx)}
-                className={clsx(
-                  "w-full rounded-lg px-3 py-2 text-left",
-                  idx === highlight
-                    ? "bg-accent/20 text-white"
-                    : "text-white/80",
-                )}
-              >
-                {item.name}
-              </button>
+          {suggestions.length === 0 ? (
+            <li className="px-3 py-2.5 text-sm text-white/40">
+              {items.length === 0 ? "Loading teams…" : "No matches"}
             </li>
-          ))}
+          ) : (
+            suggestions.map((item, idx) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => choose(item)}
+                  onMouseEnter={() => setHighlight(idx)}
+                  className={clsx(
+                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-base",
+                    idx === highlight
+                      ? "bg-accent/20 text-white"
+                      : "text-white/80",
+                  )}
+                >
+                  {iconKind && (
+                    <TeamBadge
+                      name={item.name}
+                      national={iconKind === "national"}
+                      size={22}
+                    />
+                  )}
+                  <span className="min-w-0 truncate">{item.name}</span>
+                </button>
+              </li>
+            ))
+          )}
         </DropdownPortal>
       </div>
     </div>

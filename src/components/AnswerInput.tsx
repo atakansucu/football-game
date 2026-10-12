@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clsx } from "@/lib/clsx";
 import { DropdownPortal } from "@/components/DropdownPortal";
+import { onFieldFocus } from "@/lib/keyboard";
 import type {
   PlayerSuggestion,
   RoundRow,
@@ -113,6 +114,10 @@ export function AnswerInput({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqIdRef = useRef(0);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Once the round is answered correctly we keep the suggestion list closed
+  // (and never reopen it from an in-flight search) while the correct name is
+  // shown, until the parent advances to the next round and remounts us.
+  const answeredRef = useRef(false);
 
   // Debounced global search. Only runs after MIN_QUERY chars.
   useEffect(() => {
@@ -123,12 +128,18 @@ export function AnswerInput({
       setOpen(false);
       return;
     }
+    if (answeredRef.current) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const reqId = ++reqIdRef.current;
       try {
         const results = await searchPlayers(q);
         if (reqId !== reqIdRef.current) return; // a newer query superseded us
+        if (answeredRef.current) return; // round already won — don't reopen
         setSuggestions(results);
         setOpen(results.length > 0);
         setHighlight(-1);
@@ -153,7 +164,14 @@ export function AnswerInput({
           { key: counter.current++, raw: trimmed, result },
           ...prev,
         ]);
-        if (!result.is_correct) {
+        if (result.is_correct) {
+          // Lock the list closed and clear the field so the correct-answer
+          // card is all that's shown while the parent holds before advancing.
+          answeredRef.current = true;
+          setValue("");
+          setSuggestions([]);
+          setOpen(false);
+        } else {
           setValue("");
           setSuggestions([]);
           inputRef.current?.focus();
@@ -219,19 +237,20 @@ export function AnswerInput({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="relative">
+      <div className="flex items-stretch gap-2">
+        <div className="relative flex-1">
         <input
           ref={inputRef}
           className="field text-xl"
           placeholder="Type a player..."
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onFocus={() => onFieldFocus(inputRef.current)}
           onBlur={() => {
             blurTimer.current = setTimeout(() => setOpen(false), 120);
           }}
           onKeyDown={onKeyDown}
           disabled={disabled || submitting}
-          autoFocus
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
@@ -258,7 +277,7 @@ export function AnswerInput({
                 onClick={() => choose(item)}
                 onMouseEnter={() => setHighlight(idx)}
                 className={clsx(
-                  "w-full rounded-lg px-3 py-2 text-left",
+                  "w-full rounded-lg px-3 py-2.5 text-left text-base",
                   idx === highlight
                     ? "bg-accent/20 text-white"
                     : "text-white/80",
@@ -269,6 +288,15 @@ export function AnswerInput({
             </li>
           ))}
         </DropdownPortal>
+        </div>
+
+        <button
+          type="submit"
+          disabled={disabled || submitting || !value.trim()}
+          className="btn-primary shrink-0 px-5 text-base"
+        >
+          {submitting ? "…" : "Guess"}
+        </button>
       </div>
 
       {attempts.length > 0 && (

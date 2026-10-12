@@ -8,6 +8,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browserClient";
 import {
   fetchClubs,
   fetchNationalTeams,
+  getCachedClubs,
+  getCachedNationalTeams,
   type NamedEntity,
 } from "@/features/lookup/api";
 import type { GameRoomApi } from "@/features/room/useGameRoom";
@@ -25,8 +27,10 @@ const INVALID_MESSAGE: Record<string, string> = {
  */
 export function SelectionPhase({ api }: { api: GameRoomApi }) {
   const { round, mySlot } = api;
-  const [clubs, setClubs] = useState<NamedEntity[]>([]);
-  const [nationalTeams, setNationalTeams] = useState<NamedEntity[]>([]);
+  const [clubs, setClubs] = useState<NamedEntity[]>(getCachedClubs);
+  const [nationalTeams, setNationalTeams] = useState<NamedEntity[]>(
+    getCachedNationalTeams,
+  );
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -147,6 +151,7 @@ export function SelectionPhase({ api }: { api: GameRoomApi }) {
               items={items}
               value={selectionId}
               onChange={setSelectionId}
+              iconKind={myRole === "national_team" ? "national" : "club"}
             />
             <Button onClick={onConfirm} disabled={!selectionId || busy}>
               {busy ? "Confirming..." : "Confirm Selection"}

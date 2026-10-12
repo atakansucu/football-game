@@ -1,0 +1,23 @@
+{
+  "name": "@football-duel/game-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./normalize": "./src/normalize.ts",
+    "./validate": "./src/validate.ts",
+    "./challenge": "./src/challenge.ts",
+    "./player-pick": "./src/playerPick.ts",
+    "./game": "./src/game.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

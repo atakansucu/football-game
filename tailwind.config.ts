@@ -2,6 +2,11 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  // Touch-first (Capacitor iOS): only apply `hover:` styles on devices that
+  // truly support hover, so a tap doesn't leave cards stuck in a hover state.
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       colors: {
