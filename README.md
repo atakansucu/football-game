@@ -146,18 +146,27 @@ export:
 curl -L -o tm.zip "https://www.kaggle.com/api/v1/datasets/download/davidcariboo/player-scores"
 unzip tm.zip -d tmdata
 
-# 2. Transform CSVs -> normalized dataset JSON
-npx tsx scripts/data-import/fromTransfermarkt.ts ./tmdata ./dataset.transfermarkt.json
+# 2. Transform all official on-field evidence -> research JSON + metrics
+npm run data:transfermarkt -- \
+  ./tmdata \
+  /tmp/dataset.transfermarkt.research.json \
+  /tmp/dataset.transfermarkt.research.stats.json
 
-# 3. Import into the Supabase project from .env.local
-npx tsx scripts/data-import/importFootballData.ts ./dataset.transfermarkt.json
+# 3. Validate without connecting to Supabase
+npm run data:transfermarkt:validate -- \
+  /tmp/dataset.transfermarkt.research.json \
+  scripts/data-import/baselines/transfermarkt-v677.json
 ```
 
-The importer clears existing players (batched), reuses clubs/national teams by
-name, only stores club relations backed by >= 1 official appearance (data covers
-2012+), and rebuilds the precomputed answer tables so challenges are always
-answerable. To feed any other source, produce a `NormalizedDataset` (see
-`scripts/data-import/types.ts`) and run step 3.
+The research transformer uses appearances, confirmed starting lineups and
+unambiguous on-field events. Bench-only records, cards, transfers and valuations
+do not qualify. See
+[`docs/TRANSFERMARKT_PIPELINE.md`](docs/TRANSFERMARKT_PIPELINE.md) for the
+evidence policy, validated counts and licensing risks.
+
+Do **not** pass the generated research JSON to `importFootballData.ts` without
+explicit release approval. That importer clears existing players, writes to the
+Supabase project in `.env.local`, and rebuilds the live answer tables.
 
 > Note: this dataset's match log starts in 2012, so pre-2012 club spells (e.g.
 > older players' early clubs) are not present.

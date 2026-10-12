@@ -44,6 +44,8 @@ loadEnvLocal();
 
 const PLAYER_BATCH = 500;
 const FK_BATCH = 2000;
+// Keep PostgREST `.in(...)` URLs comfortably below proxy/request-line limits.
+const CLEAR_BATCH = 100;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -68,7 +70,7 @@ async function clearTable(
     const { data, error } = await supabase
       .from(table)
       .select("id")
-      .limit(500);
+      .limit(CLEAR_BATCH);
     if (error) throw new Error(`clear ${table} (select): ${error.message}`);
     if (!data || data.length === 0) break;
     const ids = data.map((r) => (r as { id: string }).id);
@@ -143,6 +145,14 @@ async function main() {
   }
 
   const dataset = JSON.parse(readFileSync(file, "utf8")) as NormalizedDataset;
+  if (process.env.REQUIRE_LOCAL_SUPABASE === "1") {
+    const target =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
+    const hostname = new URL(target).hostname;
+    if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+      throw new Error(`Refusing non-local import target: ${hostname}`);
+    }
+  }
   const supabase = createServiceRoleClient();
 
   // ---- Drop gameplay submissions that reference players (test history) -----
@@ -257,6 +267,12 @@ async function main() {
     await supabase.rpc("rebuild_answers");
   if (rebuildErr) throw new Error(`rebuild_answers: ${rebuildErr.message}`);
   console.log("Import complete:", rebuilt);
+
+  // Current schemas serve random challenges from precomputed combo matviews.
+  const { error: refreshErr } = await supabase.rpc("refresh_solo_combos");
+  if (refreshErr && refreshErr.code !== "PGRST202") {
+    throw new Error(`refresh_solo_combos: ${refreshErr.message}`);
+  }
 
   // Self-check against the SAME project the app reads.
   const { count } = await supabase
