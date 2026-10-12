@@ -171,20 +171,37 @@ export function getCachedNationalTeams(): NamedEntity[] {
   return readLS(NT_KEY) ?? [];
 }
 
+async function fetchAllNamedEntities(
+  supabase: SupabaseClient,
+  table: "clubs" | "national_teams",
+): Promise<NamedEntity[]> {
+  const pageSize = 1_000;
+  const rows: NamedEntity[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("id, name")
+      .order("name")
+      .order("id")
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const page = (data as NamedEntity[]) ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 export function fetchClubs(supabase: SupabaseClient): Promise<NamedEntity[]> {
   if (!clubsCache) {
     clubsCache = (async () => {
-      const { data, error } = await supabase
-        .from("clubs")
-        .select("id, name")
-        .order("name");
-      if (error) {
+      try {
+        const rows = await fetchAllNamedEntities(supabase, "clubs");
+        writeLS(CLUBS_KEY, rows);
+        return rows;
+      } catch (error) {
         clubsCache = null; // allow a retry on failure
-        throw new Error(error.message);
+        throw error;
       }
-      const rows = (data as NamedEntity[]) ?? [];
-      writeLS(CLUBS_KEY, rows);
-      return rows;
     })();
   }
   return clubsCache;
@@ -195,17 +212,14 @@ export function fetchNationalTeams(
 ): Promise<NamedEntity[]> {
   if (!nationalTeamsCache) {
     nationalTeamsCache = (async () => {
-      const { data, error } = await supabase
-        .from("national_teams")
-        .select("id, name")
-        .order("name");
-      if (error) {
+      try {
+        const rows = await fetchAllNamedEntities(supabase, "national_teams");
+        writeLS(NT_KEY, rows);
+        return rows;
+      } catch (error) {
         nationalTeamsCache = null;
-        throw new Error(error.message);
+        throw error;
       }
-      const rows = (data as NamedEntity[]) ?? [];
-      writeLS(NT_KEY, rows);
-      return rows;
     })();
   }
   return nationalTeamsCache;
