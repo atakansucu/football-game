@@ -19,7 +19,10 @@
     "mobile:build": "npm run build && cap sync ios",
     "mobile:sync": "cap sync ios",
     "mobile:ios": "cap open ios",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "data:transfermarkt": "tsx scripts/data-import/fromTransfermarkt.ts",
+    "data:transfermarkt:validate": "tsx scripts/data-import/validateTransfermarktDataset.ts",
+    "data:transfermarkt:audit-identities": "tsx scripts/data-import/investigateTransfermarktIdentities.ts"
   },
   "dependencies": {
     "@capacitor/app": "^8.0.0",
@@ -47,6 +50,7 @@
     "postcss": "8.4.31",
     "supabase": "^2.2.1",
     "tailwindcss": "^3.4.17",
+    "tsx": "4.20.6",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

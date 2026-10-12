@@ -8,6 +8,8 @@ export interface NormalizedDataset {
   clubs: { name: string }[];
   nationalTeams: { name: string }[];
   players: {
+    /** Optional source identity retained by research pipelines; not imported. */
+    sourceId?: string;
     name: string;
     aliases?: string[];
     /** Senior national teams represented (by name). */

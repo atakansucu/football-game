@@ -1,0 +1,33 @@
+{
+  "source": {
+    "kaggleDataset": "davidcariboo/player-scores",
+    "kaggleVersion": 677,
+    "publishedAt": "2026-08-05T07:19:00.543Z",
+    "playersSha256": "ea3a3903eda7d40cbf265b3e470307ea60622d7d03a7de06a055b2f1d36bc727",
+    "appearancesSha256": "aa892fae30fa944f8e8ea1c511274db6acb51306d45f1a5475bef1efddcba7f1",
+    "clubsSha256": "0d6ce1af95b7af66833e2b0c78f72295db287bd759c8859dc6c91da8eb1ce0b3",
+    "transfersSha256": "8ca03c11c3df5215a62be7fb303c679bc78971f461209b396f1f7640d933fc34"
+  },
+  "metrics": {
+    "usablePlayers": 30325,
+    "clubClubEligiblePlayers": 25702,
+    "nationalClubEligiblePlayers": 13882,
+    "clubs": 2308,
+    "nationalTeams": 138,
+    "clubClubChallenges": 76521,
+    "nationalClubChallenges": 14518,
+    "clubClubAnswers": 150465,
+    "nationalClubAnswers": 38326
+  },
+  "originalAnalysisMaximum": {
+    "usablePlayers": 30741,
+    "clubClubEligiblePlayers": 26320,
+    "nationalClubEligiblePlayers": 13987,
+    "clubs": 2360,
+    "nationalTeams": 139,
+    "clubClubChallenges": 83560,
+    "nationalClubChallenges": 15490,
+    "clubClubAnswers": 175375,
+    "nationalClubAnswers": 41718
+  }
+}
